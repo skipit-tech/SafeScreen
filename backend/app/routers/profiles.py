@@ -3,19 +3,32 @@ from datetime import datetime, timezone
 from typing import List
 
 from app.database import supabase
-from app.models.child_profile import ProfileCreate, ProfileUpdate, ProfileResponse
+from app.models.child_profile import ProfileCreate, ProfileUpdate, ProfileResponse, AdditionalDetails
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
 
+def normalize_additional_details(data):
+    """Normalize additional_details to handle both old string format and new structured format."""
+    if data is None:
+        return AdditionalDetails().model_dump()
+    if isinstance(data, str):
+        # Legacy string format - wrap in notes field
+        return AdditionalDetails(notes=data).model_dump()
+    if isinstance(data, dict):
+        return data
+    return AdditionalDetails().model_dump()
+
+
 def row_to_response(row: dict) -> ProfileResponse:
+    additional_details = normalize_additional_details(row.get("additional_details"))
     return ProfileResponse(
         id=str(row["id"]),
         name=row.get("name", "Unknown"),
         age=int(row.get("age", 18)),
         sensitivities=row.get("sensitivities", {}),
         calming_strategy=row.get("calming_strategy", ""),
-        additional_details=row.get("additional_details", ""),
+        additional_details=additional_details,
         created_at=str(row.get("created_at", "")),
         updated_at=str(row.get("updated_at", "")),
     )
@@ -24,12 +37,20 @@ def row_to_response(row: dict) -> ProfileResponse:
 @router.post("", response_model=ProfileResponse, status_code=201)
 async def create_profile(profile: ProfileCreate):
     now = datetime.now(timezone.utc).isoformat()
+    
+    # Handle additional_details - convert to dict if it's a model
+    additional_details = profile.additional_details
+    if hasattr(additional_details, 'model_dump'):
+        additional_details = additional_details.model_dump()
+    elif isinstance(additional_details, str):
+        additional_details = AdditionalDetails(notes=additional_details).model_dump()
+    
     row = {
         "name": profile.name,
         "age": profile.age,
         "sensitivities": profile.sensitivities.model_dump(),
         "calming_strategy": profile.calming_strategy,
-        "additional_details": profile.additional_details,
+        "additional_details": additional_details,
         "created_at": now,
         "updated_at": now,
     }
@@ -65,6 +86,14 @@ async def update_profile(profile_id: str, update: ProfileUpdate):
             if isinstance(update_data["sensitivities"], dict)
             else update.sensitivities.model_dump()
         )
+    
+    # Handle additional_details - normalize to dict
+    if "additional_details" in update_data and update_data["additional_details"] is not None:
+        ad = update_data["additional_details"]
+        if hasattr(ad, 'model_dump'):
+            update_data["additional_details"] = ad.model_dump()
+        elif isinstance(ad, str):
+            update_data["additional_details"] = AdditionalDetails(notes=ad).model_dump()
 
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 

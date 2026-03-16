@@ -4,23 +4,74 @@ import { sendProfileChatMessage, createProfile, getProfile, updateProfile } from
 import './CreateProfile.css';
 
 const SENSITIVITY_FIELDS = [
-  { key: 'violence',        label: 'Violence',         icon: '⚔️' },
-  { key: 'blood_gore',      label: 'Blood / Gore',     icon: '🩸' },
-  { key: 'self_harm',       label: 'Self-Harm',        icon: '🩹' },
-  { key: 'suicide',         label: 'Suicide',          icon: '⚠️' },
-  { key: 'gun_weapon',      label: 'Gun / Weapon',     icon: '🔫' },
-  { key: 'abuse',           label: 'Abuse',            icon: '🚫' },
-  { key: 'death_grief',     label: 'Death / Grief',    icon: '🕊️' },
-  { key: 'sexual_content',  label: 'Sexual Content',   icon: '🔞' },
-  { key: 'bullying',        label: 'Bullying',         icon: '😤' },
-  { key: 'substance_use',   label: 'Substance Use',    icon: '💊' },
-  { key: 'flash_seizure',   label: 'Flash / Seizure',  icon: '⚡' },
-  { key: 'loud_sensory',    label: 'Loud / Sensory',   icon: '🔊' },
+  { key: 'violence',        label: 'Violence',         icon: '⚔️', description: 'Fighting, combat, physical harm' },
+  { key: 'blood_gore',      label: 'Blood / Gore',     icon: '🩸', description: 'Blood, injuries, graphic wounds' },
+  { key: 'self_harm',       label: 'Self-Harm',        icon: '🩹', description: 'Self-injury themes or depictions' },
+  { key: 'suicide',         label: 'Suicide',          icon: '⚠️', description: 'Suicide themes or references' },
+  { key: 'gun_weapon',      label: 'Gun / Weapon',     icon: '🔫', description: 'Firearms, weapons, threats' },
+  { key: 'abuse',           label: 'Abuse',            icon: '🚫', description: 'Physical, emotional, or verbal abuse' },
+  { key: 'death_grief',     label: 'Death / Grief',    icon: '🕊️', description: 'Death of characters, mourning scenes' },
+  { key: 'sexual_content',  label: 'Sexual Content',   icon: '🔞', description: 'Romantic or sexual situations' },
+  { key: 'bullying',        label: 'Bullying',         icon: '😤', description: 'Harassment, intimidation, exclusion' },
+  { key: 'substance_use',   label: 'Substance Use',    icon: '💊', description: 'Drugs, alcohol, addiction themes' },
+  { key: 'flash_seizure',   label: 'Flash / Seizure',  icon: '⚡', description: 'Strobe lights, rapid flashing' },
+  { key: 'loud_sensory',    label: 'Loud / Sensory',   icon: '🔊', description: 'Loud noises, overwhelming audio' },
 ];
 
-const SENSITIVITY_LABELS = ['Not Sensitive', 'Slightly', 'Moderate', 'Sensitive', 'Very Sensitive'];
+const SENSITIVITY_SCALE = [
+  { value: 1, label: 'Very comfortable', emoji: '😊', color: 'safe' },
+  { value: 2, label: 'Mostly okay', emoji: '🙂', color: 'mild' },
+  { value: 3, label: 'Depends', emoji: '😐', color: 'moderate' },
+  { value: 4, label: 'Sensitive', emoji: '😟', color: 'sensitive' },
+  { value: 5, label: 'Very sensitive', emoji: '😰', color: 'intense' },
+];
 
 const defaultSensitivities = Object.fromEntries(SENSITIVITY_FIELDS.map((f) => [f.key, 3]));
+
+// ─── Sensitivity Slider Component ────────────────────────────────────────────
+
+function SensitivitySlider({ field, value, onChange }) {
+  const scale = SENSITIVITY_SCALE[value - 1];
+  
+  return (
+    <div className="sensitivity-card">
+      <div className="sensitivity-header">
+        <span className="sensitivity-icon">{field.icon}</span>
+        <div className="sensitivity-info">
+          <span className="sensitivity-label">{field.label}</span>
+          <span className="sensitivity-desc">{field.description}</span>
+        </div>
+      </div>
+      
+      <div className="sensitivity-control">
+        <input
+          type="range"
+          min={1}
+          max={5}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className={`sensitivity-range color-${scale.color}`}
+        />
+        <div className="sensitivity-scale-labels">
+          {SENSITIVITY_SCALE.map((s) => (
+            <span 
+              key={s.value} 
+              className={`scale-dot ${value === s.value ? 'active' : ''}`}
+              onClick={() => onChange(s.value)}
+            >
+              {s.emoji}
+            </span>
+          ))}
+        </div>
+        <div className={`sensitivity-value color-${scale.color}`}>
+          <span className="value-emoji">{scale.emoji}</span>
+          <span className="value-label">{scale.label}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Edit Form ───────────────────────────────────────────────────────────────
 
@@ -30,7 +81,7 @@ function EditProfileForm({ profileId }) {
   const [age, setAge] = useState('');
   const [sensitivities, setSensitivities] = useState(defaultSensitivities);
   const [calmingStrategy, setCalmingStrategy] = useState('');
-  const [additionalDetails, setAdditionalDetails] = useState('');
+  const [additionalDetails, setAdditionalDetails] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -41,7 +92,7 @@ function EditProfileForm({ profileId }) {
       setAge(String(p.age));
       setSensitivities({ ...defaultSensitivities, ...p.sensitivities });
       setCalmingStrategy(p.calming_strategy || '');
-      setAdditionalDetails(p.additional_details || '');
+      setAdditionalDetails(p.additional_details || {});
       setLoading(false);
     }).catch(() => navigate('/'));
   }, [profileId, navigate]);
@@ -65,84 +116,124 @@ function EditProfileForm({ profileId }) {
     }
   };
 
-  if (loading) return <div className="form-loading"><div className="spinner" /><p>Loading profile...</p></div>;
+  if (loading) {
+    return (
+      <div className="profile-loading">
+        <div className="spinner" />
+        <p>Loading profile...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="create-profile-chat">
-      <header className="form-header">
-        <h1>Edit Profile</h1>
-        <p className="form-subtitle">Update the sensitivity settings for this profile.</p>
-      </header>
+    <div className="profile-page">
+      <div className="profile-container">
+        <header className="profile-header">
+          <h1>Edit Profile</h1>
+          <p className="profile-subtitle">
+            Adjust sensitivity settings to personalize the viewing experience.
+          </p>
+        </header>
 
-      <form onSubmit={handleSubmit} className="profile-edit-form">
-        <section className="edit-section">
-          <h2>Basic Info</h2>
-          <div className="edit-field">
-            <label htmlFor="name">Name</label>
-            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
-          </div>
-          <div className="edit-field">
-            <label htmlFor="age">Age</label>
-            <input id="age" type="number" min={1} max={120} value={age} onChange={(e) => setAge(e.target.value)} required className="age-number-input" />
-          </div>
-        </section>
-
-        <section className="edit-section">
-          <h2>Sensitivities</h2>
-          <p className="edit-hint">1 = Not sensitive &nbsp;→&nbsp; 5 = Very sensitive</p>
-          <div className="sliders-grid">
-            {SENSITIVITY_FIELDS.map((f) => (
-              <div key={f.key} className="slider-row">
-                <div className="slider-label">
-                  <span>{f.icon}</span><span>{f.label}</span>
-                </div>
-                <div className="slider-control">
+        <form onSubmit={handleSubmit} className="profile-form">
+          {/* Basic Info Card */}
+          <section className="profile-section">
+            <div className="section-header">
+              <h2>Basic Info</h2>
+            </div>
+            <div className="section-content">
+              <div className="form-row">
+                <div className="form-field">
+                  <label htmlFor="name">Name</label>
                   <input
-                    type="range" min={1} max={5} step={1}
-                    value={sensitivities[f.key]}
-                    onChange={(e) => setSensitivities((prev) => ({ ...prev, [f.key]: parseInt(e.target.value) }))}
+                    id="name"
+                    type="text"
+                    className="input"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    maxLength={100}
+                    placeholder="Who is this profile for?"
                   />
-                  <span className={`sensitivity-badge s-${sensitivities[f.key]}`}>
-                    {SENSITIVITY_LABELS[sensitivities[f.key] - 1]}
-                  </span>
+                </div>
+                <div className="form-field form-field-small">
+                  <label htmlFor="age">Age</label>
+                  <input
+                    id="age"
+                    type="number"
+                    className="input"
+                    min={1}
+                    max={120}
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
+            </div>
+          </section>
 
-        <section className="edit-section">
-          <h2>Calming Strategy</h2>
-          <div className="edit-field">
-            <textarea
-              value={calmingStrategy}
-              onChange={(e) => setCalmingStrategy(e.target.value)}
-              placeholder="e.g. Deep breathing, looking at pictures of puppies..."
-              maxLength={500} rows={3}
-            />
-          </div>
-        </section>
+          {/* Sensitivities Card */}
+          <section className="profile-section">
+            <div className="section-header">
+              <h2>Sensitivities</h2>
+              <p className="section-hint">
+                This helps Skipit decide whether to warn, soften, or skip certain scenes.
+              </p>
+            </div>
+            
+            <div className="scale-legend">
+              {SENSITIVITY_SCALE.map((s) => (
+                <div key={s.value} className={`legend-item color-${s.color}`}>
+                  <span className="legend-emoji">{s.emoji}</span>
+                  <span className="legend-label">{s.label}</span>
+                </div>
+              ))}
+            </div>
 
-        <section className="edit-section">
-          <h2>Additional Notes</h2>
-          <p className="edit-hint">Context gathered during the initial profile setup.</p>
-          <div className="edit-field">
-            <textarea
-              value={additionalDetails}
-              onChange={(e) => setAdditionalDetails(e.target.value)}
-              placeholder="No additional details recorded yet."
-              maxLength={2000} rows={4}
-            />
-          </div>
-        </section>
+            <div className="sensitivities-grid">
+              {SENSITIVITY_FIELDS.map((field) => (
+                <SensitivitySlider
+                  key={field.key}
+                  field={field}
+                  value={sensitivities[field.key]}
+                  onChange={(val) => setSensitivities(prev => ({ ...prev, [field.key]: val }))}
+                />
+              ))}
+            </div>
+          </section>
 
-        <div className="form-actions">
-          <button type="button" className="btn btn-secondary" onClick={() => navigate('/')}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={saving || !name.trim() || !age}>
-            {saving ? 'Saving...' : 'Update Profile'}
-          </button>
-        </div>
-      </form>
+          {/* Calming Strategy Card */}
+          <section className="profile-section">
+            <div className="section-header">
+              <h2>Calming Strategy</h2>
+              <p className="section-hint">
+                What helps when something unexpected comes up?
+              </p>
+            </div>
+            <div className="section-content">
+              <textarea
+                className="input textarea"
+                value={calmingStrategy}
+                onChange={(e) => setCalmingStrategy(e.target.value)}
+                placeholder="e.g., Deep breathing, looking at calming images, taking a short break..."
+                maxLength={500}
+                rows={3}
+              />
+            </div>
+          </section>
+
+          {/* Actions */}
+          <div className="form-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => navigate('/')}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={saving || !name.trim() || !age}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -170,7 +261,7 @@ function CreateProfileChat() {
         const res = await sendProfileChatMessage([]);
         setMessages([{ role: 'assistant', content: res.data.reply }]);
       } catch {
-        setMessages([{ role: 'assistant', content: 'Chat service unavailable. Check backend connection and API keys.' }]);
+        setMessages([{ role: 'assistant', content: "I'm having trouble connecting right now. Please check your connection and try again." }]);
       } finally {
         setLoading(false);
       }
@@ -216,53 +307,83 @@ function CreateProfileChat() {
   };
 
   return (
-    <div className="create-profile-chat">
-      <header className="form-header">
-        <h1>Create Profile</h1>
-        <p className="form-subtitle">Chat with our AI assistant to set up your personalized sensitivity profile.</p>
-      </header>
+    <div className="profile-page">
+      <div className="chat-page-container">
+        <header className="profile-header">
+          <h1>Create Profile</h1>
+          <p className="profile-subtitle">
+            Answer a few questions to help Skipit understand what works best for you.
+          </p>
+          <p className="profile-helper">
+            You're always in control. Skip any question or change your mind later.
+          </p>
+        </header>
 
-      <div className="chat-container">
-        <div className="chat-messages">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`chat-message ${msg.role}`}>
-              <div className="message-bubble">{msg.content}</div>
-            </div>
-          ))}
-          {loading && (
-            <div className="chat-message assistant">
-              <div className="message-bubble typing-indicator">
-                <span className="dot" /><span className="dot" /><span className="dot" />
+        <div className="chat-wrapper">
+          <div className="chat-messages">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`chat-message ${msg.role}`}>
+                {msg.role === 'assistant' && (
+                  <div className="assistant-avatar">
+                    <span>S</span>
+                  </div>
+                )}
+                <div className="message-bubble">{msg.content}</div>
               </div>
+            ))}
+            {loading && (
+              <div className="chat-message assistant">
+                <div className="assistant-avatar">
+                  <span>S</span>
+                </div>
+                <div className="message-bubble typing">
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {chatComplete ? (
+            <div className="chat-complete-card">
+              <div className="complete-icon">✓</div>
+              <h3>Profile Ready</h3>
+              <p>We've captured your preferences. You can always adjust these later in settings.</p>
+              <button className="btn btn-primary" onClick={handleSaveProfile} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Profile'}
+              </button>
             </div>
+          ) : (
+            <form className="chat-input-form" onSubmit={handleSend}>
+              <input
+                type="text"
+                className="chat-input"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Type your response..."
+                disabled={loading}
+                autoFocus
+              />
+              <button type="submit" className="btn btn-primary send-btn" disabled={!inputText.trim() || loading}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </form>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
-        {chatComplete ? (
-          <div className="chat-complete">
-            <h3>Profile Ready!</h3>
-            <p>The assistant has collected all the information needed.</p>
-            <button className="btn btn-primary" onClick={handleSaveProfile} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Profile'}
+        {!chatComplete && (
+          <div className="chat-footer">
+            <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>
+              Cancel
             </button>
           </div>
-        ) : (
-          <form className="chat-input-area" onSubmit={handleSend}>
-            <input
-              type="text" value={inputText} onChange={(e) => setInputText(e.target.value)}
-              placeholder="Type your answer here..." disabled={loading} autoFocus
-            />
-            <button type="submit" className="btn btn-primary" disabled={!inputText.trim() || loading}>Send</button>
-          </form>
         )}
       </div>
-
-      {!chatComplete && (
-        <div className="form-actions" style={{ marginTop: '1.5rem', justifyContent: 'center' }}>
-          <button type="button" className="btn btn-secondary" onClick={() => navigate('/')}>Cancel</button>
-        </div>
-      )}
     </div>
   );
 }
